@@ -1,14 +1,12 @@
 import time
 import threading
 import sys
+import subprocess
+import re
 import os
+from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import SESSION_TIMEOUT
-
-try:
-    from utils.network import get_mac_from_ip
-except ImportError:
-    get_mac_from_ip = lambda ip: None
 
 
 class SessionManager:
@@ -48,7 +46,7 @@ class SessionManager:
         with self.lock:
             for ip, data in self.sessions.items():
                 if data.get('mac'):
-                    current_mac = get_mac_from_ip(ip)
+                    current_mac = self.get_mac_from_ip(ip)
                     if current_mac and current_mac != data['mac']:
                         print(f"[SECURITY] ¡Spoofing detectado! IP {ip}: "
                               f"MAC original {data['mac']} -> actual {current_mac}")
@@ -60,7 +58,7 @@ class SessionManager:
             print(f"[SECURITY] Sesión revocada por suplantación: {ip}")
     
     def create_session(self, ip_address: str, username: str) -> bool:
-        mac = get_mac_from_ip(ip_address)
+        mac = self.get_mac_from_ip(ip_address)
         
         # Autorizar en firewall 
         if not self.firewall.authorize_ip(ip_address, mac):
@@ -95,6 +93,37 @@ class SessionManager:
     def get_session(self, ip_address: str) -> dict:
         with self.lock:
             return self.sessions.get(ip_address)
+        
+    def get_mac_from_ip(self, ip_address: str) -> Optional[str]:
+   
+        mac_pattern = r'([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}'
+
+        # Método 1: ip neigh 
+        try:
+            result = subprocess.run(
+                ['ip', 'neigh', 'show', ip_address],
+                capture_output=True, text=True, timeout=5
+            )
+            match = re.search(mac_pattern, result.stdout)
+            if match:
+                return match.group(0).lower().replace('-', ':')
+        except:
+            pass
+        
+        # Método 2: arp -n 
+        try:
+            result = subprocess.run(
+                ['arp', '-n', ip_address],
+                capture_output=True, text=True, timeout=5
+            )
+            match = re.search(mac_pattern, result.stdout)
+            if match:
+                return match.group(0).lower().replace('-', ':')
+        except:
+            pass
+        
+        return None
+
     
     def stop(self):
         self._running = False
