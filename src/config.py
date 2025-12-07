@@ -11,7 +11,6 @@ SOCKET_TIMEOUT = 30
 
 # Archivos
 USERS_FILE = "data/users.json"
-TEMPLATES_DIR = "http_server/templates"
 
 # Sesiones
 SESSION_TIMEOUT = 3600  # 1 hora

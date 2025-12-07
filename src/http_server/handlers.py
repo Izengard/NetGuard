@@ -3,11 +3,15 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import CAPTIVE_DETECTION_PATHS, PORTAL_IP, PORTAL_PORT,TEMPLATES_DIR
+from config import CAPTIVE_DETECTION_PATHS, PORTAL_IP, PORTAL_PORT
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_ABS = os.path.join(BASE_DIR, 'templates')
 
 
 def load_template(name: str) -> str:
-    template_path = os.path.join(TEMPLATES_DIR, name)
+    template_path = os.path.join(TEMPLATES_ABS, name)
     try:
         with open(template_path, 'r', encoding='utf-8') as f:
             return f.read()
