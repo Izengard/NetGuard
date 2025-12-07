@@ -12,12 +12,18 @@ NetGuard es un portal cautivo diseñado para controlar el acceso a Internet en r
 
 ```
 NetGuard/
+├── README.md                # Documentación del proyecto
+├── scripts/
+│   └── setup_gateway.sh     # Script de configuración del sistema
 ├── src/
 │   ├── main.py              # Punto de entrada y orquestador
 │   ├── config.py            # Configuración centralizada
+│   ├── system_setup.py      # Configuración del sistema (Python)
 │   ├── auth/                # Sistema de autenticación
 │   │   ├── users.py         # Gestión de usuarios
 │   │   └── sessions.py      # Gestión de sesiones
+│   ├── data/
+│   │   └── users.json       # Base de datos de usuarios
 │   ├── dns/                 # Servidor DNS
 │   │   └── dns_server.py    # Redirección DNS al portal
 │   ├── firewall/            # Gestión de firewall
@@ -26,6 +32,10 @@ NetGuard/
 │       ├── server.py        # Socket TCP server
 │       ├── handlers.py      # Lógica de rutas HTTP
 │       └── templates/       # Frontend HTML/CSS/JS
+│           ├── login.html
+│           ├── status.html
+│           ├── style.css
+│           └── index.js
 ```
 
 ### Flujo de Funcionamiento
@@ -200,108 +210,164 @@ USERS_FILE = "data/users.json"
 TEMPLATES_DIR = "http_server/templates"
 ```
 
-## 🚀 Instalación y Uso
+## 🌐 Configuración del Sistema como Gateway
+
+El servidor debe tener **2 interfaces de red** y configurarse como router.
+
+### Topología de Red
+
+```
+[Internet] → [Router ISP] → [WAN: eth0] → [SERVIDOR] → [LAN: eth1] → [Clientes]
+                              192.168.0.x              192.168.1.1    192.168.1.x
+```
 
 ### Requisitos
-- **Sistema Operativo**: Linux (Ubuntu/Debian/CentOS)
+
+- **OS**: Ubuntu 20.04+ / Debian 10+
 - **Python**: 3.6+
-- **Privilegios**: root/sudo (para iptables)
-- **Red**: 2 interfaces de red (LAN + WAN)
+- **Paquetes**: `iptables`, `dnsmasq`
+- **Red**: 2 interfaces (LAN + WAN)
 
-### Instalación
+---
+
+## ⚡ Configuración Automática (Recomendado)
 
 ```bash
-# Clonar repositorio
+# 1. Identificar interfaces
+ip link show                    # Ver interfaces disponibles
+ip route | grep default         # WAN = interfaz con ruta por defecto
+
+# 2. Ejecutar script de configuración
+chmod +x scripts/setup_gateway.sh
+sudo LAN_INTERFACE=eth1 WAN_INTERFACE=eth0 ./scripts/setup_gateway.sh
+
+# 3. Editar config.py con tus interfaces
+nano src/config.py
+```
+
+---
+
+## 🔧 Configuración Manual
+
+Si prefieres configurar manualmente:
+
+### 1. Configurar IP en interfaz LAN
+
+```bash
+sudo ip addr add 192.168.1.1/24 dev eth1
+sudo ip link set eth1 up
+```
+
+### 3. Configurar DHCP (dnsmasq)
+
+```bash
+sudo apt install dnsmasq -y
+sudo tee /etc/dnsmasq.d/netguard.conf << EOF
+interface=eth1
+bind-interfaces
+port=0
+dhcp-range=192.168.1.100,192.168.1.200,12h
+dhcp-option=option:router,192.168.1.1
+dhcp-option=option:dns-server,192.168.1.1
+EOF
+sudo systemctl restart dnsmasq
+```
+
+### 4. Deshabilitar systemd-resolved (si está activo)
+
+```bash
+sudo systemctl stop systemd-resolved
+sudo systemctl disable systemd-resolved
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+```
+
+---
+
+## 🖥️ En Máquina Virtual
+
+**VirtualBox:**
+
+- Adaptador 1 (WAN): NAT
+- Adaptador 2 (LAN): Red interna
+
+**VMware:**
+
+- Adapter 1 (WAN): NAT
+- Adapter 2 (LAN): Host-only
+
+---
+
+## 🚀 Instalación y Uso
+
+```bash
+# 1. Clonar repositorio
 git clone https://github.com/Izengard/NetGuard.git
-cd NetGuard/src
+cd NetGuard
 
-# No requiere pip install (sin dependencias)
-```
+# 2. Configurar sistema (ver sección anterior)
+sudo LAN_INTERFACE=eth1 WAN_INTERFACE=eth0 ./scripts/setup_gateway.sh
 
-### Ejecución
+# 3. Ajustar config.py con tus interfaces
+nano src/config.py
 
-```bash
-# Modo completo (requiere root)
+# 4. Iniciar portal
+cd src
 sudo python3 main.py
-
-# Modo sin firewall (pruebas)
-python3 main.py --no-firewall
-
-# Modo sin DNS
-sudo python3 main.py --no-dns
-
-# Agregar usuario
-python3 main.py --add-user
 ```
 
-### Comandos principales
+### Opciones de Ejecución
 
 ```bash
-# Agregar usuario manualmente
-python3 main.py --add-user
-# Usuario: juan
-# Contraseña: ****
+sudo python3 main.py              # Modo completo
+python3 main.py --no-firewall     # Sin firewall (pruebas)
+sudo python3 main.py --no-dns     # Sin servidor DNS
+python3 main.py --add-user        # Agregar usuario
+```
 
-# Verificar reglas de firewall
+### Comandos Útiles
+
+```bash
+# Ver estado del sistema
+sudo python3 system_setup.py
+
+# Ver reglas de firewall
 sudo iptables -L -n -v
 sudo iptables -t nat -L -n -v
 
-# Ver sesiones activas (en logs)
-sudo python3 main.py | grep SESSION
+# Ver clientes DHCP
+cat /var/lib/misc/dnsmasq.leases
+
+# Probar portal
+curl -v http://192.168.1.1/login
 ```
 
 ## 🔒 Seguridad
 
-### Características de Seguridad
+- **Hashing**: SHA-256 con salt único por usuario
+- **Anti-Spoofing**: Vinculación IP+MAC, detección de cambios
+- **Sesiones**: Timeout automático, limpieza periódica
+- **Firewall**: Política DROP por defecto, autorización individual
 
-1. **Hashing de contraseñas**:
-   - SHA-256 con salt único por usuario
-   - No se almacenan contraseñas en texto plano
-
-2. **Anti-Spoofing**:
-   - Vinculación IP+MAC en firewall
-   - Monitoreo continuo de cambios de MAC
-   - Revocación automática si se detecta suplantación
-
-3. **Gestión de sesiones**:
-   - Timeout automático (1 hora)
-   - Limpieza periódica de sesiones expiradas
-   - Thread-safe (locks para concurrencia)
-
-4. **Firewall**:
-   - Política restrictiva por defecto (DROP)
-   - Autorización individual por usuario
-   - Cleanup automático al cerrar
-
-
-
-## 🛠️ Desarrollo
-
-### Estructura de Datos
+## 🛠️ Estructuras de Datos
 
 **Sesión activa**:
+
 ```python
-{
-    'username': 'admin',
-    'login_time': 1733567890.123,
-    'mac': '00:11:22:33:44:55'
-}
+{'username': 'admin', 'login_time': 1733567890.123, 'mac': '00:11:22:33:44:55'}
 ```
 
 **Usuario en JSON**:
+
 ```json
-{
-    "admin": "a1b2c3d4:sha256hash..."
-}
+{"admin": "salt:sha256hash..."}
 ```
 
 ## 📝 Licencia
 
-Este proyecto es de código abierto para fines educativos.
+Código abierto para fines educativos.
 
 ## 👤 Autor
 
-**Izengard**  
-GitHub: [@Izengard](https://github.com/Izengard)
+**Izengard** - [@Izengard](https://github.com/Izengard)
 
 
