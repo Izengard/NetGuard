@@ -315,6 +315,13 @@ cd src
 sudo python3 main.py
 ```
 
+### Detener y restaurar red
+
+```bash
+# Detener portal y restaurar configuración de red
+sudo ./scripts/reset_gateway.sh
+```
+
 ### Opciones de Ejecución
 
 ```bash
