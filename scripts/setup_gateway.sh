@@ -1,7 +1,4 @@
-#!/bin/bash
-# NetGuard - Configuración del Gateway
 # Uso: sudo ./setup_gateway.sh
-# Variables de entorno opcionales: LAN_INTERFACE, WAN_INTERFACE, PORTAL_IP
 
 set -e
 
@@ -19,6 +16,11 @@ echo "=== NetGuard - Configuración del Gateway ==="
 echo "LAN: $LAN | WAN: $WAN | IP: $IP"
 echo ""
 
+HAS_SYSTEMCTL=false
+if command -v systemctl >/dev/null 2>&1; then
+    HAS_SYSTEMCTL=true
+fi
+
 # 1. Instalar dependencias
 echo "[1/4] Instalando dependencias..."
 apt-get update -qq
@@ -30,9 +32,8 @@ ip addr flush dev "$LAN" 2>/dev/null || true
 ip addr add "$IP/24" dev "$LAN"
 ip link set "$LAN" up
 
-# 3. Habilitar IP forwarding
 echo "[3/4] Deshabilitando systemd-resolved..."
-if systemctl is-active --quiet systemd-resolved; then
+if $HAS_SYSTEMCTL && systemctl is-active --quiet systemd-resolved; then
     systemctl stop systemd-resolved
     systemctl disable systemd-resolved
     rm -f /etc/resolv.conf
@@ -41,7 +42,6 @@ fi
 
 # 4. Configurar DHCP (dnsmasq)
 echo "[4/4] Configurando servidor DHCP..."
-systemctl stop dnsmasq 2>/dev/null || true
 
 cat > /etc/dnsmasq.d/netguard.conf << EOF
 interface=$LAN
@@ -52,8 +52,18 @@ dhcp-option=option:router,$IP
 dhcp-option=option:dns-server,$IP
 EOF
 
-systemctl restart dnsmasq
-systemctl enable dnsmasq
+if $HAS_SYSTEMCTL; then
+    systemctl stop dnsmasq 2>/dev/null || true
+    systemctl restart dnsmasq
+    systemctl enable dnsmasq 2>/dev/null || true
+else
+    # Entorno sin systemd (por ejemplo, contenedores)
+    if [ -f /var/run/dnsmasq.pid ]; then
+        kill "$(cat /var/run/dnsmasq.pid)" 2>/dev/null || true
+        rm -f /var/run/dnsmasq.pid
+    fi
+    dnsmasq --conf-file=/etc/dnsmasq.d/netguard.conf --keep-in-foreground --log-facility=- &
+fi
 
 echo ""
 echo "=== Configuración completada ==="

@@ -11,10 +11,12 @@ NetGuard es un portal cautivo diseñado para controlar el acceso a Internet en r
 ### Componentes Principales
 
 ```
+```text
 NetGuard/
 ├── README.md                # Documentación del proyecto
 ├── scripts/
-│   └── setup_gateway.sh     # Script de configuración del sistema
+│   ├── setup_gateway.sh     # Configuración del sistema
+│   └── reset_gateway.sh     # Restaurar red y reglas
 ├── src/
 │   ├── main.py              # Punto de entrada y orquestador
 │   ├── config.py            # Configuración centralizada
@@ -31,12 +33,47 @@ NetGuard/
 │   └── http_server/         # Servidor web
 │       ├── server.py        # Socket TCP server
 │       ├── handlers.py      # Lógica de rutas HTTP
-│       └── templates/       # Frontend HTML/CSS/JS
+│       └── templates/       # Frontend HTML/CSS
 │           ├── login.html
-│           ├── status.html
-│           ├── style.css
-│           └── index.js
+│           └── status.html
 ```
+
+## 🐳 Pruebas con Docker
+
+Requisitos: Docker y Docker Compose.
+
+### Levantar entorno de prueba
+
+```bash
+# Construir imágenes
+docker compose build
+
+# Levantar portal (sin firewall para pruebas rápidas)
+docker compose up -d
+
+# Ver contenedores
+docker compose ps
+```
+
+### Probar desde el contenedor cliente
+
+```bash
+# Abrir shell en el cliente
+docker exec -it netguard_client sh
+
+# Dentro del cliente
+wget -qO- http://192.168.1.1/login    # Probar HTTP del portal
+# Si activas el servidor DNS del portal:
+dig @192.168.1.1 example.com
+```
+
+### Activar firewall dentro del contenedor (opcional)
+
+- Edita `docker-compose.yml` y quita `--no-firewall` del command de `netguard`.
+- Añade `privileged: true` al servicio `netguard` para permitir iptables dentro del contenedor.
+- Vuelve a levantar: `docker compose up -d --force-recreate`.
+
+> Nota: las reglas iptables vivirán dentro del contenedor, no en el host.
 
 ### Flujo de Funcionamiento
 
@@ -73,6 +110,7 @@ NetGuard/
 ### 1. **Sistema de Autenticación** (`auth/`)
 
 #### `users.py` - UserManager
+
 - **Propósito**: Gestión de credenciales de usuario
 - **Características**:
   - Almacenamiento en JSON (`data/users.json`)
@@ -81,6 +119,7 @@ NetGuard/
   - Métodos: `authenticate()`, `add_user()`, `delete_user()`
 
 **Seguridad**:
+
 ```python
 # Hash format: "salt:hash"
 salt = os.urandom(16).hex()
@@ -88,6 +127,7 @@ hash_value = hashlib.sha256((salt + password).encode()).hexdigest()
 ```
 
 #### `sessions.py` - SessionManager
+
 - **Propósito**: Control de sesiones activas
 - **Características**:
   - Mapeo IP ↔ Usuario + MAC + Timestamp
@@ -96,6 +136,7 @@ hash_value = hashlib.sha256((salt + password).encode()).hexdigest()
   - Detección de MAC spoofing
 
 **Anti-Spoofing**:
+
 ```python
 # Verifica cambios de MAC para la misma IP
 if current_mac != stored_mac:
@@ -105,6 +146,7 @@ if current_mac != stored_mac:
 ### 2. **Servidor DNS** (`dns/`)
 
 #### `dns_server.py` - CaptivePortalDNS
+
 - **Propósito**: Redireccionar todas las consultas DNS al portal
 - **Funcionamiento**:
   - Socket UDP en puerto 53
@@ -112,17 +154,20 @@ if current_mac != stored_mac:
   - Construcción manual de paquetes DNS (sin librerías)
 
 **Estructura de respuesta DNS**:
-```
+
+```text
 [Header: 12 bytes] + [Query original] + [Answer: IP del portal]
 ```
 
 ### 3. **Firewall** (`firewall/`)
 
 #### `manager.py` - FirewallManager
+
 - **Propósito**: Control de acceso a nivel de red
 - **Tecnología**: iptables (Linux)
 
 **Reglas principales**:
+
 ```bash
 # 1. Bloquear todo forwarding por defecto
 iptables -P FORWARD DROP
@@ -139,12 +184,14 @@ iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 ```
 
 **Anti-Spoofing a nivel firewall**:
+
 - Vinculación IP+MAC obligatoria
 - Evita cambio de MAC sin reautenticación
 
 ### 4. **Servidor HTTP** (`http_server/`)
 
 #### `server.py` - CaptivePortalServer
+
 - **Propósito**: Servidor web sin dependencias
 - **Implementación**:
   - Socket TCP raw (`socket.socket`)
@@ -152,6 +199,7 @@ iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
   - Sin frameworks (Flask, Django, etc.)
 
 **Flujo de request**:
+
 ```python
 1. Accept connection → client_socket
 2. Recv raw HTTP request (4096 bytes)
@@ -161,6 +209,7 @@ iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 ```
 
 #### `handlers.py` - RequestHandler
+
 - **Rutas**:
   - `/login` (GET/POST): Autenticación
   - `/status`: Panel de usuario autenticado
@@ -168,6 +217,7 @@ iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
   - `/generate_204`, `/ncsi.txt`: Detección de portal cautivo
 
 **Detección automática de portales**:
+
 ```python
 # iOS, Android, Windows usan estas rutas
 CAPTIVE_DETECTION_PATHS = [
@@ -179,13 +229,15 @@ CAPTIVE_DETECTION_PATHS = [
 
 ### 5. **Frontend** (`http_server/templates/`)
 
-#### Archivos:
+#### Archivos
+
 - `login.html`: Formulario de autenticación
 - `status.html`: Dashboard post-login
 - `style.css`: Estilos responsivos
 - `index.js`: Validación y UX (opcional)
 
 **Features**:
+
 - Diseño responsive (mobile-first)
 - Sin dependencias externas (no jQuery, Bootstrap, etc.)
 - Validación client-side
@@ -202,6 +254,12 @@ LAN_INTERFACE = "eth1"          # Interfaz hacia clientes
 WAN_INTERFACE = "eth0"          # Interfaz hacia Internet
 LAN_NETWORK = "192.168.1.0/24"  # Subred LAN
 
+# WiFi Hotspot
+WIFI_INTERFACE = "wlan0"        # Interfaz WiFi
+WIFI_SSID = "NetGuard"          # Nombre de la red
+WIFI_PASSWORD = "netguard123"   # Contraseña WPA2
+WIFI_CHANNEL = 6                # Canal WiFi
+
 # Sesiones
 SESSION_TIMEOUT = 3600          # 1 hora en segundos
 
@@ -210,13 +268,109 @@ USERS_FILE = "data/users.json"
 TEMPLATES_DIR = "http_server/templates"
 ```
 
+## 📶 Modo WiFi Hotspot
+
+NetGuard puede funcionar como un punto de acceso WiFi (hotspot), ideal para:
+- Crear redes de invitados con autenticación
+- Eventos y conferencias
+- Espacios públicos (cafeterías, bibliotecas)
+- Raspberry Pi como router portátil
+
+### Requisitos WiFi
+
+- Interfaz WiFi con soporte **AP mode** (modo Access Point)
+- Paquetes: `hostapd`, `dnsmasq`, `iw`
+- Privilegios root
+
+### Verificar soporte AP mode
+
+```bash
+# Listar interfaces WiFi
+iw dev
+
+# Verificar modos soportados (buscar "AP")
+iw list | grep -A 10 "Supported interface modes"
+```
+
+### Configuración Automática
+
+```bash
+# 1. Ejecutar script de configuración
+chmod +x scripts/setup_wifi_hotspot.sh
+sudo WIFI_INTERFACE=wlan0 WIFI_SSID="MiRed" WIFI_PASSWORD="password123" ./scripts/setup_wifi_hotspot.sh
+
+# 2. Iniciar portal con WiFi
+cd src
+sudo python3 main.py --wifi
+```
+
+### Opciones de línea de comandos WiFi
+
+```bash
+# Usar WiFi como interfaz LAN
+sudo python3 main.py --wifi
+
+# Solo iniciar hotspot (sin portal HTTP)
+sudo python3 main.py --wifi-only
+
+# Personalizar configuración
+sudo python3 main.py --wifi --wifi-interface wlan1 --wifi-ssid "Invitados" --wifi-password "guest2024"
+```
+
+### Arquitectura WiFi Hotspot
+
+```text
+                    ┌─────────────────────────────────────────┐
+                    │           SERVIDOR NetGuard              │
+                    │  ┌─────────┐   ┌──────────┐   ┌───────┐ │
+[Internet] ──────── │  │  eth0   │ ↔ │ Firewall │ ↔ │ wlan0 │ │
+                    │  │  (WAN)  │   │ iptables │   │  (AP) │ │
+                    │  └─────────┘   └──────────┘   └───────┘ │
+                    │                                    │     │
+                    │  ┌──────────┐   ┌────────┐   ┌────────┐ │
+                    │  │ Portal   │ ↔ │  DNS   │ ↔ │ DHCP   │ │
+                    │  │ HTTP:80  │   │ :53    │   │dnsmasq │ │
+                    │  └──────────┘   └────────┘   └────────┘ │
+                    └─────────────────────────────────────────┘
+                                         │
+                    ┌────────────────────┼────────────────────┐
+                    │                    │                    │
+               📱 Móvil            💻 Laptop           📟 Tablet
+               (WiFi)               (WiFi)              (WiFi)
+```
+
+### Detener WiFi Hotspot
+
+```bash
+# Detener portal y restaurar WiFi
+sudo ./scripts/reset_wifi_hotspot.sh
+
+# O restaurar manualmente
+sudo systemctl stop hostapd
+sudo systemctl start NetworkManager
+```
+
+### Configuración en Raspberry Pi
+
+```bash
+# Instalar dependencias
+sudo apt-get update
+sudo apt-get install -y hostapd dnsmasq iptables
+
+# Configurar hotspot
+sudo WIFI_INTERFACE=wlan0 WIFI_SSID="NetGuard-Pi" ./scripts/setup_wifi_hotspot.sh
+
+# Iniciar portal
+cd src && sudo python3 main.py --wifi
+```
+
 ## 🌐 Configuración del Sistema como Gateway
 
 El servidor debe tener **2 interfaces de red** y configurarse como router.
 
 ### Topología de Red
 
-```
+```text
 [Internet] → [Router ISP] → [WAN: eth0] → [SERVIDOR] → [LAN: eth1] → [Clientes]
                               192.168.0.x              192.168.1.1    192.168.1.x
 ```
@@ -325,10 +479,15 @@ sudo ./scripts/reset_gateway.sh
 ### Opciones de Ejecución
 
 ```bash
-sudo python3 main.py              # Modo completo
+sudo python3 main.py              # Modo completo (LAN ethernet)
 python3 main.py --no-firewall     # Sin firewall (pruebas)
 sudo python3 main.py --no-dns     # Sin servidor DNS
 python3 main.py --add-user        # Agregar usuario
+
+# Modo WiFi Hotspot
+sudo python3 main.py --wifi       # Portal + WiFi hotspot
+sudo python3 main.py --wifi-only  # Solo hotspot WiFi
+sudo python3 main.py --wifi --wifi-ssid "MiRed" --wifi-password "clave123"
 ```
 
 ### Comandos Útiles
