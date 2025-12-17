@@ -50,17 +50,19 @@ class CaptivePortalServer:
             client_socket.settimeout(SOCKET_TIMEOUT)
             
             request_data = client_socket.recv(BUFFER_SIZE).decode('utf-8', errors='ignore')
+            print(request_data)
             if not request_data:
                 return
             
+            print("Handling")
             handler = RequestHandler(
                 self.session_manager,
                 self.user_manager,
                 client_address[0]
             )
-            response = handler.handle_request(request_data)      
-            client_socket.sendall(response.encode('utf-8'))
             
+            response = handler.handle_request(request_data)  
+            client_socket.send(response.encode('utf-8'))
         except Exception as e:
             print(f"[HTTP] Error manejando cliente {client_address}: {e}")
         finally:

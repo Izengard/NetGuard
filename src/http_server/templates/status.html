@@ -6,23 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;800&display=swap');
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "poppins"; color: #fff; }
-        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f0f0f; }
-        .card { position: relative; width: 420px; background: #000; border: 2px solid #7127e7; box-shadow: 0 0 25px #7429ac; border-radius: 16px; padding: 32px; overflow: hidden; }
-        .card::before { content: ""; position: absolute; right: -60px; top: -160px; width: 320px; height: 320px; background: linear-gradient(45deg,#25252b,#7127e7); transform: rotate(18deg) skewY(24deg); opacity: 0.4; }
-        .card h1 { font-size: 28px; font-weight: 800; margin-bottom: 12px; color: #7eff99; position: relative; z-index: 1; }
-        .card p { font-size: 16px; color: #bdbdbd; margin-bottom: 12px; position: relative; z-index: 1; }
-        .pill { display: inline-block; padding: 6px 12px; border: 1px solid #7127e7; border-radius: 999px; font-size: 13px; color: #e5d9ff; margin-bottom: 20px; position: relative; z-index: 1; }
-        .btn { display: inline-block; width: 100%; text-align: center; padding: 12px 16px; border-radius: 12px; border: 2px solid #7127e7; background: transparent; color: #fff; font-size: 15px; font-weight: 600; text-decoration: none; position: relative; z-index: 1; overflow: hidden; transition: 0.25s ease; }
-        .btn::before { content: ""; position: absolute; inset: -120% 0 0 0; background: linear-gradient(#25252b,#7127e7,#25252b); transition: 0.4s ease; z-index: -1; }
-        .btn:hover::before { inset: 0; }
-        .btn:hover { color: #fff; }
+        * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: "poppins"; color: #fff; }}
+        body {{ display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f0f0f; }}
+        .card {{ position: relative; width: 420px; background: #000; border: 2px solid #7127e7; box-shadow: 0 0 25px #7429ac; border-radius: 16px; padding: 32px; overflow: hidden; }}
+        .card::before {{ content: ""; position: absolute; right: -60px; top: -160px; width: 320px; height: 320px; background: linear-gradient(45deg,#25252b,#7127e7); transform: rotate(18deg) skewY(24deg); opacity: 0.4; }}
+        .card h1 {{ font-size: 28px; font-weight: 800; margin-bottom: 12px; color: #7eff99; position: relative; z-index: 1; }}
+        .card p {{ font-size: 16px; color: #bdbdbd; margin-bottom: 12px; position: relative; z-index: 1; }}
+        .pill {{ display: inline-block; padding: 6px 12px; border: 1px solid #7127e7; border-radius: 999px; font-size: 13px; color: #e5d9ff; margin-bottom: 20px; position: relative; z-index: 1; }}
+        .btn {{ display: inline-block; width: 100%; text-align: center; padding: 12px 16px; border-radius: 12px; border: 2px solid #7127e7; background: transparent; color: #fff; font-size: 15px; font-weight: 600; text-decoration: none; position: relative; z-index: 1; overflow: hidden; transition: 0.25s ease; }}
+        .btn::before {{ content: ""; position: absolute; inset: -120% 0 0 0; background: linear-gradient(#25252b,#7127e7,#25252b); transition: 0.4s ease; z-index: -1; }}
+        .btn:hover::before {{ inset: 0; }}
+        .btn:hover {{ color: #fff; }}
     </style>
 </head>
 <body>
     <div class="card">
         <span class="pill">Conectado</span>
-        <h1>&#10003; Bienvenido, {username}</h1>
+        <h1>&#10003; Bienvenido</h1>
         <p>Tu sesión está activa. Ya puedes navegar por Internet.</p>
         <a class="btn" href="/logout">Cerrar sesión</a>
     </div>

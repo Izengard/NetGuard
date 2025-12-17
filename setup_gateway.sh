@@ -3,9 +3,10 @@
 set -e
 
 # Configuración (editar o pasar como variables de entorno)
-LAN="${LAN_INTERFACE:-eth1}"
-WAN="${WAN_INTERFACE:-eth0}"
+LAN="${LAN_INTERFACE:-wlp4s0}"
+WAN="${WAN_INTERFACE:-enx1a4ca8978b1d}"
 IP="${PORTAL_IP:-192.168.1.1}"
+PASSWORD="${WIFI_PASSWORD:-netguard123}"
 DHCP_START="${DHCP_RANGE_START:-192.168.1.100}"
 DHCP_END="${DHCP_RANGE_END:-192.168.1.200}"
 
@@ -22,13 +23,15 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 
 # 1. Instalar dependencias
-echo "[1/4] Instalando dependencias..."
-apt-get update -qq
-apt-get install -y -qq iptables dnsmasq
+#echo "[1/4] Instalando dependencias..."
+#apt-get update -qq
+#apt-get install -y -qq iptables dnsmasq
 
 # 2. Configurar IP en interfaz LAN
 echo "[2/4] Configurando interfaz LAN..."
+ip link set "$LAN" down
 ip addr flush dev "$LAN" 2>/dev/null || true
+iw dev "$LAN" set type __ap 2>/dev/null || true
 ip addr add "$IP/24" dev "$LAN"
 ip link set "$LAN" up
 
@@ -40,29 +43,11 @@ if $HAS_SYSTEMCTL && systemctl is-active --quiet systemd-resolved; then
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
 fi
 
-# 4. Configurar DHCP (dnsmasq)
-echo "[4/4] Configurando servidor DHCP..."
-
-cat > /etc/dnsmasq.d/netguard.conf << EOF
-interface=$LAN
-bind-interfaces
-port=0
-dhcp-range=$DHCP_START,$DHCP_END,12h
-dhcp-option=option:router,$IP
-dhcp-option=option:dns-server,$IP
-EOF
 
 if $HAS_SYSTEMCTL; then
     systemctl stop dnsmasq 2>/dev/null || true
     systemctl restart dnsmasq
     systemctl enable dnsmasq 2>/dev/null || true
-else
-    # Entorno sin systemd (por ejemplo, contenedores)
-    if [ -f /var/run/dnsmasq.pid ]; then
-        kill "$(cat /var/run/dnsmasq.pid)" 2>/dev/null || true
-        rm -f /var/run/dnsmasq.pid
-    fi
-    dnsmasq --conf-file=/etc/dnsmasq.d/netguard.conf --keep-in-foreground --log-facility=- &
 fi
 
 echo ""

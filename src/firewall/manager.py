@@ -4,7 +4,7 @@ import threading
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import LAN_INTERFACE, WAN_INTERFACE, PORTAL_IP, PORTAL_PORT
+from config import LAN_INTERFACE, WAN_INTERFACE, PORTAL_IP, PORTAL_PORT, EXTERNAL_DNS
 
 
 class FirewallManager:
@@ -72,8 +72,9 @@ class FirewallManager:
             # Vincular IP+MAC en el firewall 
             rule = f"iptables -I FORWARD -s {ip} -m mac --mac-source {mac} -j ACCEPT"
             if self._run(rule):
-                self._run(f"iptables -I FORWARD -d {ip} -j ACCEPT")
-                self._run(f"iptables -t nat -I PREROUTING -s {ip} -m mac --mac-source {mac} -j RETURN")
+                self._run(f"iptables -t nat -I PREROUTING 1 -i {LAN_INTERFACE} -m mac --mac-source {mac} -p udp --dport 53 -j DNAT --to-destination {EXTERNAL_DNS}:53")
+                self._run(f"iptables -t nat -I PREROUTING 1 -i {LAN_INTERFACE} -m mac --mac-source {mac} -p tcp --dport 80 -j ACCEPT")
+                self._run(f"iptables -t nat -I PREROUTING 1 -i {LAN_INTERFACE} -m mac --mac-source {mac} -p tcp --dport 443 -j ACCEPT")
                 self.authorized_ips.add(ip)
                 print(f"[FIREWALL] IP autorizada con MAC: {ip} ({mac})")
                 return True
@@ -87,11 +88,13 @@ class FirewallManager:
                 return False
             
             if mac:
-                self._run(f"iptables -D FORWARD -s {ip} -m mac --mac-source {mac} -j ACCEPT")
-                self._run(f"iptables -t nat -D PREROUTING -s {ip} -m mac --mac-source {mac} -j RETURN")
-            self._run(f"iptables -D FORWARD -s {ip} -j ACCEPT")
-            self._run(f"iptables -D FORWARD -d {ip} -j ACCEPT")
-            self._run(f"iptables -t nat -D PREROUTING -s {ip} -j RETURN")
+                self._run(f"iptables -I FORWARD 1 -i {LAN_INTERFACE} -m mac --mac-source {mac} -j DROP")
+                self._run(f"conntrack -D -s {ip} 2>/dev/null; conntrack -D -d {ip} 2>/dev/null; true")
+                self._run(f"iptables -t nat -D PREROUTING -i {LAN_INTERFACE} -m mac --mac-source {mac} -p udp --dport 53 -j DNAT --to-destination {EXTERNAL_DNS}:53")
+                self._run(f"iptables -t nat -D PREROUTING -i {LAN_INTERFACE} -m mac --mac-source {mac} -p tcp --dport 80 -j ACCEPT")
+                self._run(f"iptables -t nat -D PREROUTING -i {LAN_INTERFACE} -m mac --mac-source {mac} -p tcp --dport 443 -j ACCEPT")
+                
+            
             self.authorized_ips.discard(ip)
             print(f"[FIREWALL] IP revocada: {ip}")
             return True

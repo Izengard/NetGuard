@@ -38,43 +38,6 @@ NetGuard/
 │           └── status.html
 ```
 
-## 🐳 Pruebas con Docker
-
-Requisitos: Docker y Docker Compose.
-
-### Levantar entorno de prueba
-
-```bash
-# Construir imágenes
-docker compose build
-
-# Levantar portal (sin firewall para pruebas rápidas)
-docker compose up -d
-
-# Ver contenedores
-docker compose ps
-```
-
-### Probar desde el contenedor cliente
-
-```bash
-# Abrir shell en el cliente
-docker exec -it netguard_client sh
-
-# Dentro del cliente
-wget -qO- http://192.168.1.1/login    # Probar HTTP del portal
-# Si activas el servidor DNS del portal:
-dig @192.168.1.1 example.com
-```
-
-### Activar firewall dentro del contenedor (opcional)
-
-- Edita `docker-compose.yml` y quita `--no-firewall` del command de `netguard`.
-- Añade `privileged: true` al servicio `netguard` para permitir iptables dentro del contenedor.
-- Vuelve a levantar: `docker compose up -d --force-recreate`.
-
-> Nota: las reglas iptables vivirán dentro del contenedor, no en el host.
-
 ### Flujo de Funcionamiento
 
 ```
@@ -234,7 +197,7 @@ CAPTIVE_DETECTION_PATHS = [
 - `login.html`: Formulario de autenticación
 - `status.html`: Dashboard post-login
 - `style.css`: Estilos responsivos
-- `index.js`: Validación y UX (opcional)
+- `index.js`: Validación y UX 
 
 **Features**:
 
@@ -350,19 +313,6 @@ sudo systemctl stop hostapd
 sudo systemctl start NetworkManager
 ```
 
-### Configuración en Raspberry Pi
-
-```bash
-# Instalar dependencias
-sudo apt-get update
-sudo apt-get install -y hostapd dnsmasq iptables
-
-# Configurar hotspot
-sudo WIFI_INTERFACE=wlan0 WIFI_SSID="NetGuard-Pi" ./scripts/setup_wifi_hotspot.sh
-
-# Iniciar portal
-cd src && sudo python3 main.py --wifi
-```
 
 ## 🌐 Configuración del Sistema como Gateway
 
@@ -379,75 +329,9 @@ El servidor debe tener **2 interfaces de red** y configurarse como router.
 
 - **OS**: Ubuntu 20.04+ / Debian 10+
 - **Python**: 3.6+
-- **Paquetes**: `iptables`, `dnsmasq`
+- **Paquetes**: `iptables`, `dnsmasq`, `hostapd`
 - **Red**: 2 interfaces (LAN + WAN)
 
----
-
-## ⚡ Configuración Automática (Recomendado)
-
-```bash
-# 1. Identificar interfaces
-ip link show                    # Ver interfaces disponibles
-ip route | grep default         # WAN = interfaz con ruta por defecto
-
-# 2. Ejecutar script de configuración
-chmod +x scripts/setup_gateway.sh
-sudo LAN_INTERFACE=eth1 WAN_INTERFACE=eth0 ./scripts/setup_gateway.sh
-
-# 3. Editar config.py con tus interfaces
-nano src/config.py
-```
-
----
-
-## 🔧 Configuración Manual
-
-Si prefieres configurar manualmente:
-
-### 1. Configurar IP en interfaz LAN
-
-```bash
-sudo ip addr add 192.168.1.1/24 dev eth1
-sudo ip link set eth1 up
-```
-
-### 3. Configurar DHCP (dnsmasq)
-
-```bash
-sudo apt install dnsmasq -y
-sudo tee /etc/dnsmasq.d/netguard.conf << EOF
-interface=eth1
-bind-interfaces
-port=0
-dhcp-range=192.168.1.100,192.168.1.200,12h
-dhcp-option=option:router,192.168.1.1
-dhcp-option=option:dns-server,192.168.1.1
-EOF
-sudo systemctl restart dnsmasq
-```
-
-### 4. Deshabilitar systemd-resolved (si está activo)
-
-```bash
-sudo systemctl stop systemd-resolved
-sudo systemctl disable systemd-resolved
-echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
-```
-
----
-
-## 🖥️ En Máquina Virtual
-
-**VirtualBox:**
-
-- Adaptador 1 (WAN): NAT
-- Adaptador 2 (LAN): Red interna
-
-**VMware:**
-
-- Adapter 1 (WAN): NAT
-- Adapter 2 (LAN): Host-only
 
 ---
 
@@ -458,8 +342,8 @@ echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
 git clone https://github.com/Izengard/NetGuard.git
 cd NetGuard
 
-# 2. Configurar sistema (ver sección anterior)
-sudo LAN_INTERFACE=eth1 WAN_INTERFACE=eth0 ./scripts/setup_gateway.sh
+# 2. Configurar sistema 
+sudp ./scripts/setup_gateway.sh
 
 # 3. Ajustar config.py con tus interfaces
 nano src/config.py
@@ -474,20 +358,6 @@ sudo python3 main.py
 ```bash
 # Detener portal y restaurar configuración de red
 sudo ./scripts/reset_gateway.sh
-```
-
-### Opciones de Ejecución
-
-```bash
-sudo python3 main.py              # Modo completo (LAN ethernet)
-python3 main.py --no-firewall     # Sin firewall (pruebas)
-sudo python3 main.py --no-dns     # Sin servidor DNS
-python3 main.py --add-user        # Agregar usuario
-
-# Modo WiFi Hotspot
-sudo python3 main.py --wifi       # Portal + WiFi hotspot
-sudo python3 main.py --wifi-only  # Solo hotspot WiFi
-sudo python3 main.py --wifi --wifi-ssid "MiRed" --wifi-password "clave123"
 ```
 
 ### Comandos Útiles
